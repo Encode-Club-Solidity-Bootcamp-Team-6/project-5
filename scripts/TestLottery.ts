@@ -118,6 +118,7 @@ function menuOptions(rl: readline.Interface) {
           rl.question("What account (index) to use?\n", async (index) => {
             const prize = await displayPrize(index);
             if (Number(prize) > 0) {
+              console.log("Prize to claim\n");
               rl.question(
                 "Do you want to claim your prize? [Y/N]\n",
                 async (answer) => {
@@ -133,6 +134,7 @@ function menuOptions(rl: readline.Interface) {
                 }
               );
             } else {
+              console.log("No prize to claim\n");
               mainMenu(rl);
             }
           });
@@ -393,12 +395,9 @@ async function displayPrize(index: string) {
       // Call the 'prize' mapping in the Lottery contract to get the prize amount for the specified account
       const prize = await lotteryContract.read.prize([accountAddress]);
 
-      // Prize amount
-      const prizeAmount = formatEther(prize);
-
       // Log and return the prize amount
-      console.log(`The prize amount for the account at index ${index} (${accountAddress}) is: ${prizeAmount} LT0 tokens`);
-      return prizeAmount + " LT0";
+      console.log(`The prize amount for the account at index ${index} (${accountAddress}) is: ${prize} LT0 tokens`);
+      return prize;
   } catch (error) {
       console.error("Failed to retrieve prize:", error);
       return "Error retrieving prize";
@@ -406,9 +405,33 @@ async function displayPrize(index: string) {
 }
 
 
-async function claimPrize(index: string, amount: string) {
-  // TODO
+async function claimPrize(index: string, prize: number) {
+  const publicClient = await getClient();
+  const accounts = await getAccounts();
+
+  // Ensure the specified index is within bounds and valid
+  if (index < 0 || index >= accounts.length) {
+      console.log("Invalid account index.");
+      return "Invalid index";
+  }
+
+  const signer = accounts[Number(index)];
+  const lotteryContract = await viem.getContractAt("Lottery", contractAddress, signer);
+
+  try {
+      
+      
+      console.log(`Attempting to claim prize of ${prize} LT0 tokens for account at index ${index}...`);
+      const tx = await lotteryContract.write.prizeWithdraw([prize], { account: signer.account.address });
+      const receipt = await publicClient.getTransactionReceipt({ hash: tx.transactionHash });
+      
+      console.log(`Prize of ${prize} LT0 tokens claimed successfully. Transaction hash: ${receipt.transactionHash}`);
+  } catch (error) {
+      console.error("Failed to claim prize:", error);
+      throw new Error(`Failed to claim prize: ${error.message}`);
+  }
 }
+
 
 async function displayOwnerPool() {
   // TODO
