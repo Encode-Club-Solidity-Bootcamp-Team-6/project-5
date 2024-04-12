@@ -219,9 +219,9 @@ async function displayBalance(index: string) {
 async function buyTokens(index: string, amount: string) {
   const publicClient = await getClient();
   const accounts = await getAccounts(); // Retrieve accounts
-  const signer = accounts[Number(index)].account.address;
+  const signer = accounts[Number(index)].account.address; // signer is the address at index
 
-  // Retrieve the Lottery contract instance using the specified account
+  // Retrieve the Lottery contract instance
   const lotteryContract = await viem.getContractAt("Lottery", contractAddress);
 
 
@@ -229,17 +229,17 @@ async function buyTokens(index: string, amount: string) {
   try {
       // Sending ETH to purchase tokens. Using the connected account based on the index.
 
-      const tx = await lotteryContract.write.purchaseTokens([], {
-        value: parseEther(amount), // Eth amount sent to buy tokens
-        account: signer // Account used specified by the index
-      });
+    const tx = await lotteryContract.write.purchaseTokens([], {
+      value: parseEther(amount), // Eth amount sent to buy tokens
+      account: signer // Account used specified by the index
+    });
 
-      // Wait for the transaction to be mined to ensure it's completed
-      const receipt = await publicClient.getTransactionReceipt({ hash: tx });
+    // Wait for the transaction to be mined to ensure it's completed
+    const receipt = await publicClient.getTransactionReceipt({ hash: tx });
 
-      console.log(`The account of address ${accounts[Number(index)].account.address} has purchased ${amount} LT0 tokens`);
-      
-      console.log(`Transaction hash: ${receipt.transactionHash}`);
+    console.log(`The account of address ${accounts[Number(index)].account.address} has purchased ${amount} LT0 tokens`);
+    
+    console.log(`Transaction hash: ${receipt.transactionHash}`);
   } catch (error) {
       console.error("Failed to purchase tokens: ", error);
       throw new Error(`Failed to purchase tokens: ${error.message}`);
@@ -261,9 +261,66 @@ async function displayTokenBalance(index: string) {
   );
 }
 
-async function bet(index: string, amount: string) {
-  // TODO
+// Asynchronous function to place a bet using a specified account index
+async function bet(index: string) {
+  // Get a client to interact with the blockchain
+  const publicClient = await getClient();
+  // Retrieve an array of accounts available to your script
+  const accounts = await getAccounts();
+  // Select the specific account based on the index provided; this should be a full account object capable of signing transactions
+  const signer = accounts[Number(index)];  
+
+  // Check contracts addresses
+  console.log("Lottery Address:", contractAddress);
+  console.log("Token Address:", tokenAddress);
+
+  // Connect to the Lottery contract using the specified account to allow actions (transactions) to be taken using this account
+  const lotteryContract = await viem.getContractAt("Lottery", contractAddress, signer);
+  // Connect to the LotteryToken contract to manage the tokens (e.g., for approval to transfer tokens)
+  const tokenContract = await viem.getContractAt("LotteryToken", tokenAddress, signer);
+
+
+
+  // Calculate the total amount of tokens needed for the bet by adding the bet price and fee, then converting to Wei (the smallest unit of the token)
+  const totalBetAmount = parseEther((parseFloat(BET_PRICE) + parseFloat(BET_FEE)).toString());
+  console.log("Total Token Amount for Approval:", totalBetAmount.toString());
+
+  // Log the initiation of the token approval process
+  console.log("Approving tokens...");
+
+  // Request approval to allow the Lottery contract to withdraw the specified amount of tokens on behalf of the user
+  const approvalTx = await tokenContract.write.approve([
+    lotteryContract.address,  // Address of the contract to be allowed to use the tokens
+    totalBetAmount // The amount of tokens to approve
+  ],           
+    { account: signer.account.address }       // Options object specifying which account to perform the transaction
+  );
+
+  // Wait for the token approval transaction to be confirmed and log the transaction hash
+  const approvalReceipt = await publicClient.getTransactionReceipt({ hash: approvalTx });
+  console.log("Approval transaction hash:", approvalReceipt.transactionHash);
+
+  try {
+      // Log the initiation of the betting process
+      console.log("Placing bet...");
+      // Execute the bet function on the Lottery contract with no arguments, specifying the account to use
+      const tx = await lotteryContract.write.bet([], { account: signer.account.address });
+      // Wait for the bet transaction to be mined and confirmed
+      const receipt = await publicClient.getTransactionReceipt({ hash: tx });
+
+      // Log the successful placement of the bet and the transaction hash
+      console.log(`The account of address ${signer.account.address} has placed a bet.`);
+      console.log("Bet transaction hash:", receipt.transactionHash);
+  } catch (error) {
+      // If an error occurs, log the error and throw an exception with a message
+      console.error("Failed to place bet:", error);
+      throw new Error(`Failed to place bet: ${error.message}`);
+  }
 }
+
+
+
+
 
 async function closeLottery() {
   // TODO
