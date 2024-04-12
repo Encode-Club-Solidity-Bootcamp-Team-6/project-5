@@ -205,6 +205,13 @@ async function openBets(duration: string) {
 async function displayBalance(index: string) {
   const publicClient = await getClient();
   const accounts = await getAccounts();
+
+  // safeguard to ensure the index is valid
+  if (index < 0 || index >= accounts.length) {
+    console.log("Invalid account index.");
+    return "Invalid index";
+  }
+  
   const balanceBN = await publicClient.getBalance({
     address: accounts[Number(index)].account.address,
   });
@@ -223,16 +230,21 @@ async function buyTokens(index: string, amount: string) {
 
   // Retrieve the Lottery contract instance
   const lotteryContract = await viem.getContractAt("Lottery", contractAddress);
-
+  // safeguard to ensure the index is valid
+  if (index < 0 || index >= accounts.length) {
+    console.log("Invalid account index.");
+    return "Invalid index";
+  }
 
 
   try {
       // Sending ETH to purchase tokens. Using the connected account based on the index.
 
-    const tx = await lotteryContract.write.purchaseTokens([], {
+    const tx = await lotteryContract.write.purchaseTokens([],
+      {
       value: parseEther(amount), // Eth amount sent to buy tokens
       account: signer // Account used specified by the index
-    });
+      });
 
     // Wait for the transaction to be mined to ensure it's completed
     const receipt = await publicClient.getTransactionReceipt({ hash: tx });
@@ -250,6 +262,12 @@ async function buyTokens(index: string, amount: string) {
 async function displayTokenBalance(index: string) {
   const accounts = await getAccounts();
   const token = await viem.getContractAt("LotteryToken", tokenAddress);
+
+  // Safeguard to ensure the index is valid
+  if (index < 0 || index >= accounts.length) {
+    console.log("Invalid account index.");
+    return "Invalid index";
+  }
   const balanceBN = await token.read.balanceOf([
     accounts[Number(index)].account.address,
   ]);
@@ -262,7 +280,7 @@ async function displayTokenBalance(index: string) {
 }
 
 // Asynchronous function to place a bet using a specified account index
-async function bet(index: string) {
+async function bet(index: string, numberOfBets: number) {
   // Get a client to interact with the blockchain
   const publicClient = await getClient();
   // Retrieve an array of accounts available to your script
@@ -282,16 +300,21 @@ async function bet(index: string) {
 
 
   // Calculate the total amount of tokens needed for the bet by adding the bet price and fee, then converting to Wei (the smallest unit of the token)
-  const totalBetAmount = parseEther((parseFloat(BET_PRICE) + parseFloat(BET_FEE)).toString());
-  console.log("Total Token Amount for Approval:", totalBetAmount.toString());
+  const totalBetAmount = BET_PRICE + BET_FEE * numberOfBets;
+  console.log("Total Token Amount for Approval:", totalBetAmount);
 
+  // Safeguard to ensure the index is valid
+  if (index < 0 || index >= accounts.length) {
+    console.log("Invalid account index.");
+    return "Invalid index";
+  }
   // Log the initiation of the token approval process
   console.log("Approving tokens...");
 
   // Request approval to allow the Lottery contract to withdraw the specified amount of tokens on behalf of the user
   const approvalTx = await tokenContract.write.approve([
     lotteryContract.address,  // Address of the contract to be allowed to use the tokens
-    totalBetAmount // The amount of tokens to approve
+    parseEther(totalBetAmount) // The amount of tokens to approve
   ],           
     { account: signer.account.address }       // Options object specifying which account to perform the transaction
   );
@@ -304,7 +327,7 @@ async function bet(index: string) {
       // Log the initiation of the betting process
       console.log("Placing bet...");
       // Execute the bet function on the Lottery contract with no arguments, specifying the account to use
-      const tx = await lotteryContract.write.bet([], { account: signer.account.address });
+      const tx = await lotteryContract.write.betMany([numberOfBets], { account: signer.account.address });
       // Wait for the bet transaction to be mined and confirmed
       const receipt = await publicClient.getTransactionReceipt({ hash: tx });
 
@@ -320,16 +343,68 @@ async function bet(index: string) {
 
 
 
-
-
 async function closeLottery() {
-  // TODO
+  const publicClient = await getClient();
+  const lotteryContract = await viem.getContractAt("Lottery", contractAddress);
+
+  try {
+      console.log("Attempting to close the lottery...");
+      const tx = await lotteryContract.write.closeLottery();
+
+      // Wait for the transaction to be mined to ensure it's completed
+      const receipt = await publicClient.getTransactionReceipt({ hash: tx });
+      console.log("Lottery closed successfully.");
+      console.log(`Transaction hash: ${receipt.transactionHash}`);
+
+      // To be sure, we fetch the new state of the lottery to confirm it is closed
+      const isOpen = await lotteryContract.read.betsOpen();
+      console.log(`Lottery is now ${isOpen ? "open" : "closed"}.`);
+  } catch (error) {
+      console.error("Failed to close the lottery:", error);
+      throw new Error(`Failed to close the lottery: ${error.message}`);
+  }
 }
+
 
 async function displayPrize(index: string) {
-  // TODO
-  return "TODO";
+  // Retrieve a client to interact with the blockchain
+  const publicClient = await getClient();
+  // Get the array of wallet accounts
+  const accounts = await getAccounts();
+  // Ensure the specified index is within bounds and valid
+  if (index < 0 || index >= accounts.length) {
+      console.log("Invalid account index.");
+      return "Invalid index";
+  }
+  // Retrieve the account object based on the specified index
+  const account = accounts[Number(index)];
+
+  // Make sure the account has an 'account' object and an 'address' inside it
+  if (!account.account || !account.account.address) {
+      console.log("Account or address not found in the account object.");
+      return "Account or address missing";
+  }
+  const accountAddress = account.account.address; // Correctly reference the address
+
+  // Retrieve the Lottery contract instance
+  const lotteryContract = await viem.getContractAt("Lottery", contractAddress);
+
+  try {
+      // Call the 'prize' mapping in the Lottery contract to get the prize amount for the specified account
+      const prize = await lotteryContract.read.prize([accountAddress]);
+
+      // Prize amount
+      const prizeAmount = formatEther(prize);
+
+      // Log and return the prize amount
+      console.log(`The prize amount for the account at index ${index} (${accountAddress}) is: ${prizeAmount} LT0 tokens`);
+      return prizeAmount + " LT0";
+  } catch (error) {
+      console.error("Failed to retrieve prize:", error);
+      return "Error retrieving prize";
+  }
 }
+
 
 async function claimPrize(index: string, amount: string) {
   // TODO
