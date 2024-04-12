@@ -22,7 +22,7 @@ async function main() {
 }
 
 async function initAccounts() {
-  // TODO
+  // TODO >> not necessary
 }
 
 async function initContracts() {
@@ -188,7 +188,7 @@ async function checkState() {
     `The last block was mined at ${currentBlockDate.toLocaleDateString()} : ${currentBlockDate.toLocaleTimeString()}\n`
   );
   console.log(
-    `lottery should close at ${closingTimeDate.toLocaleDateString()} : ${closingTimeDate.toLocaleTimeString()}\n`
+    `Lottery should close at ${closingTimeDate.toLocaleDateString()} : ${closingTimeDate.toLocaleTimeString()}\n`
   );
 }
 
@@ -217,8 +217,35 @@ async function displayBalance(index: string) {
 }
 
 async function buyTokens(index: string, amount: string) {
-  // TODO
+  const publicClient = await getClient();
+  const accounts = await getAccounts(); // Retrieve accounts
+  const signer = accounts[Number(index)].account.address;
+
+  // Retrieve the Lottery contract instance using the specified account
+  const lotteryContract = await viem.getContractAt("Lottery", contractAddress);
+
+
+
+  try {
+      // Sending ETH to purchase tokens. Using the connected account based on the index.
+
+      const tx = await lotteryContract.write.purchaseTokens([], {
+        value: parseEther(amount), // Eth amount sent to buy tokens
+        account: signer // Account used specified by the index
+      });
+
+      // Wait for the transaction to be mined to ensure it's completed
+      const receipt = await publicClient.getTransactionReceipt({ hash: tx });
+
+      console.log(`The account of address ${accounts[Number(index)].account.address} has purchased ${amount} LT0 tokens`);
+      
+      console.log(`Transaction hash: ${receipt.transactionHash}`);
+  } catch (error) {
+      console.error("Failed to purchase tokens: ", error);
+      throw new Error(`Failed to purchase tokens: ${error.message}`);
+  }
 }
+
 
 async function displayTokenBalance(index: string) {
   const accounts = await getAccounts();
