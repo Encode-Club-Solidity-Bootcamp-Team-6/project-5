@@ -330,6 +330,7 @@ async function bet(index: string, numberOfBets: number) {
       console.log("Placing bet...");
       // Execute the bet function on the Lottery contract with no arguments, specifying the account to use
       const tx = await lotteryContract.write.betMany([numberOfBets], { account: signer.account.address });
+      console.log("betMany - number of bets:", numberOfBets);
       // Wait for the bet transaction to be mined and confirmed
       const receipt = await publicClient.getTransactionReceipt({ hash: tx });
 
@@ -396,7 +397,7 @@ async function displayPrize(index: string) {
       const prize = await lotteryContract.read.prize([accountAddress]);
 
       // Log and return the prize amount
-      console.log(`The prize amount for the account at index ${index} (${accountAddress}) is: ${prize} LT0 tokens`);
+      console.log(`The prize amount for the account at index ${index} (${accountAddress}) is: ${formatEther(prize)} LT0 tokens`);
       return prize;
   } catch (error) {
       console.error("Failed to retrieve prize:", error);
@@ -421,8 +422,9 @@ async function claimPrize(index: string, prize: number) {
   try {
       
       
-      console.log(`Attempting to claim prize of ${prize} LT0 tokens for account at index ${index}...`);
+      console.log(`Attempting to claim prize of ${formatEther(prize)} LT0 tokens for account at index ${index}...`);
       const tx = await lotteryContract.write.prizeWithdraw([prize], { account: signer.account.address });
+      console.log("prize", prize);
       const receipt = await publicClient.getTransactionReceipt({ hash: tx.transactionHash });
       
       console.log(`Prize of ${prize} LT0 tokens claimed successfully. Transaction hash: ${receipt.transactionHash}`);
